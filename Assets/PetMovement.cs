@@ -1,34 +1,39 @@
 using UnityEngine;
+using Mirror;
 
-public class PetMovement : MonoBehaviour
+public class PetMovement : NetworkBehaviour
 {
     public float speed = 5f;
+    Rigidbody rb;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        
+        rb = GetComponent<Rigidbody>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        float moveX = Input.GetAxis("Horizontal") * speed * Time.deltaTime;
-        float moveZ = Input.GetAxis("Vertical") * speed * Time.deltaTime;
-        transform.Translate(moveX, 0, moveZ);
+        if (!isOwned) return; // Only the client with authority moves this pet
+        float moveX = Input.GetAxis("Horizontal") * speed;
+        float moveZ = Input.GetAxis("Vertical") * speed;
+        Vector3 movement = new Vector3(moveX, 0, moveZ).normalized * speed * Time.deltaTime;
+        rb.MovePosition(transform.position + movement);
     }
 
     void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("Food"))
+        PetStats stats = GetComponent<PetStats>();
+        if (stats != null)
         {
-            // Handle eating food
-            PetStats stats = GetComponent<PetStats>();
-            if (stats != null)
+            if (other.CompareTag("Food"))
             {
-                stats.hunger += 20f; // Increase hunger by 20
-                if (stats.hunger > 100f) stats.hunger = 100f; // Cap at 100
-                Destroy(other.gameObject); // Destroy the food object
+                stats.hunger = Mathf.Min(stats.hunger + 20f, 100f);
+                if (isServer) Destroy(other.gameObject); // Server handles destruction
+            }
+            else if (other.CompareTag("Toy"))
+            {
+                stats.happiness = Mathf.Min(stats.happiness + 20f, 100f);
+                if (isServer) Destroy(other.gameObject);
             }
         }
     }
